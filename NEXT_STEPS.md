@@ -110,6 +110,11 @@ volumes:
 
 ## 🧪 Week 2-3: Testing (Required for Production)
 
+**Time Required for Single Developer:**
+- Full-time: 1.5-2 weeks (40-60 hours)
+- Part-time: 3-4 weeks
+- This is the most time-intensive phase!
+
 ```bash
 # Install testing tools
 npm install -D jest @types/jest ts-jest supertest @types/supertest
@@ -119,12 +124,13 @@ npx ts-jest config:init
 ```
 
 **Minimum Tests Needed:**
-- [ ] Authentication flow (signup, login)
-- [ ] User CRUD operations
-- [ ] Client CRUD operations
-- [ ] Obra CRUD operations
-- [ ] Role-based access control
-- [ ] Error handling
+- [ ] Authentication flow (signup, login) - 8-12 hours
+- [ ] User CRUD operations - 6-8 hours
+- [ ] Client CRUD operations - 8-12 hours
+- [ ] Obra CRUD operations - 6-8 hours
+- [ ] Role-based access control - 4-6 hours
+- [ ] Error handling - 4-6 hours
+- [ ] Bug fixes and refinement - 6-10 hours
 
 **Target:** 70% code coverage minimum
 
@@ -133,6 +139,7 @@ npx ts-jest config:init
 ## 📋 Priority Checklist
 
 ### Week 1: Make It Safe ⚠️
+**Time: 20-24 hours (Full-time: 3-4 days / Part-time: 1-2 weeks)**
 - [ ] Fix all npm audit vulnerabilities
 - [ ] Add Helmet.js security headers
 - [ ] Add rate limiting
@@ -145,6 +152,7 @@ npx ts-jest config:init
 - [ ] Create docker-compose.yml
 
 ### Week 2-3: Make It Testable 🧪
+**Time: 40-60 hours (Full-time: 1.5-2 weeks / Part-time: 3-4 weeks)**
 - [ ] Set up Jest + Supertest
 - [ ] Write auth tests
 - [ ] Write user route tests
@@ -154,6 +162,7 @@ npx ts-jest config:init
 - [ ] Fix any bugs found during testing
 
 ### Week 4: Make It Deployable 🚀
+**Time: 20-30 hours (Full-time: 3-5 days / Part-time: 1.5-2 weeks)**
 - [ ] Add API documentation (Swagger)
 - [ ] Improve README
 - [ ] Add GitHub Actions CI/CD
