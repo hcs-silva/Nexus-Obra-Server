@@ -11,14 +11,23 @@ const authMiddleware_1 = __importDefault(require("../middlewares/authMiddleware"
 const router = (0, express_1.Router)();
 router.get("/", authMiddleware_1.default, async (req, res) => {
     try {
-        const clients = await Client_model_1.default.find();
+        const clients = await Client_model_1.default.find().sort({ clientName: 1 }).lean();
         res.status(200).json(clients);
     }
     catch (error) {
         return res.status(500).json({ message: "Internal server error" });
     }
 });
+//TODO: Add role-based access control to ensure only masterAdmin can access all clients and Admin can only access their own client.
+//TODO: Implement more robust error handling and validation for client creation and updates.
+//TODO: Consider adding endpoints for managing client members (adding/removing users from a client).
+//TODO: Add endpoint for client admin to update their own client details (e.g., name, logo) without needing masterAdmin privileges.
+//TODO: Implement endpoint for client admin to manage their own client members (e.g., add/remove users from their client) without needing masterAdmin privileges.
+//TODO: Add endpoint for client admin to view their own client details and members without needing masterAdmin privileges.
+//TODO: Create a separate router for client member management if the logic becomes complex (e.g., adding/removing users from a client, listing client members, etc.) to keep the code organized.
 router.post("/createClient", authMiddleware_1.default, async (req, res) => {
+    let adminUser;
+    let newClient;
     try {
         const clientName = req.body.clientName?.trim();
         const adminUsername = req.body.adminUsername?.trim();
@@ -28,18 +37,33 @@ router.post("/createClient", authMiddleware_1.default, async (req, res) => {
             return res.status(400).json({ message: "All Fields are Required." });
         }
         const hashedPassword = await bcrypt_1.default.hash(req.body.adminPassword, 12);
-        const adminUser = await User_model_1.default.create({
+        adminUser = await User_model_1.default.create({
             username: adminUsername,
             password: hashedPassword,
             role: "Admin",
             resetPassword: true,
         });
-        const newClient = await Client_model_1.default.create({
-            clientName: clientName,
-            clientAdmin: adminUser._id,
-            clientLogo: clientLogo,
-        });
-        await User_model_1.default.updateOne({ _id: adminUser._id }, { $set: { clientId: newClient._id } });
+        try {
+            newClient = await Client_model_1.default.create({
+                clientName: clientName,
+                clientAdmin: adminUser._id,
+                clientLogo: clientLogo,
+            });
+        }
+        catch (clientError) {
+            await User_model_1.default.findByIdAndDelete(adminUser._id);
+            throw clientError;
+        }
+        try {
+            await User_model_1.default.updateOne({ _id: adminUser._id }, { $set: { clientId: newClient._id } });
+        }
+        catch (updateError) {
+            await Client_model_1.default.findByIdAndDelete(newClient._id);
+            await User_model_1.default.findByIdAndDelete(adminUser._id);
+            return res
+                .status(500)
+                .json({ message: "Failed to link admin to client" });
+        }
         res.status(201).json({
             message: "Client and admin created sucessfully",
             clientId: newClient._id,
@@ -47,10 +71,12 @@ router.post("/createClient", authMiddleware_1.default, async (req, res) => {
         });
     }
     catch (error) {
+        if (adminUser && !newClient) {
+            await User_model_1.default.findByIdAndDelete(adminUser._id);
+        }
         if (error?.code === 11000) {
-            return res
-                .status(409)
-                .json({
+            //console.log("Duplicate key error:", error.keyValue);
+            return res.status(409).json({
                 message: "Duplicate resource",
                 field: Object.keys(error.keyValue)[0],
             });
@@ -81,6 +107,42 @@ router.get("/:clientId", authMiddleware_1.default, async (req, res) => {
         return res.status(500).json({ message: "Internal server error" });
     }
 });
+router.patch("/me", authMiddleware_1.default, async (req, res) => {
+    try {
+        if (req.payload?.role !== "Admin") {
+            return res.status(403).json({
+                message: "Access denied. Admin role required.",
+            });
+        }
+        const tokenClientId = String(req.payload?.clientId || "");
+        if (!tokenClientId) {
+            return res.status(400).json({ message: "Client association missing." });
+        }
+        const allowedFields = [
+            "clientName",
+            "clientLogo",
+            "clientEmail",
+            "clientPhone",
+        ];
+        const updateData = {};
+        for (const key of allowedFields) {
+            if (Object.prototype.hasOwnProperty.call(req.body, key)) {
+                updateData[key] = req.body[key];
+            }
+        }
+        if (Object.keys(updateData).length === 0) {
+            return res.status(400).json({ message: "No valid fields to update." });
+        }
+        const updatedClient = await Client_model_1.default.findByIdAndUpdate(tokenClientId, updateData, { new: true });
+        if (!updatedClient) {
+            return res.status(404).json({ message: "Client not found." });
+        }
+        res.status(200).json(updatedClient);
+    }
+    catch (error) {
+        return res.status(500).json({ message: "Internal server error" });
+    }
+});
 router.patch("/:clientId", authMiddleware_1.default, async (req, res) => {
     try {
         const clientId = req.params.clientId;
@@ -94,7 +156,9 @@ router.patch("/:clientId", authMiddleware_1.default, async (req, res) => {
                 });
             }
         }
-        const updatedClient = await Client_model_1.default.findByIdAndUpdate(clientId, updateData, { new: true });
+        const updatedClient = await Client_model_1.default.findByIdAndUpdate(clientId, updateData, {
+            new: true,
+        });
         if (!updatedClient) {
             return res.status(404).json({ message: "Client not found." });
         }
@@ -112,10 +176,12 @@ router.delete("/:clientId", authMiddleware_1.default, async (req, res) => {
                 message: "Access denied. Insufficient permissions for this client.",
             });
         }
-        const deletedClient = await Client_model_1.default.findByIdAndDelete(clientId);
-        if (!deletedClient) {
+        const existingClient = await Client_model_1.default.findById(clientId);
+        if (!existingClient) {
             return res.status(404).json({ message: "Client not found." });
         }
+        await User_model_1.default.updateMany({ clientId: existingClient._id }, { $unset: { clientId: "" } });
+        await Client_model_1.default.findByIdAndDelete(existingClient._id);
         res.status(200).json({ message: "Client deleted successfully." });
     }
     catch (error) {
