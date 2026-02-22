@@ -1,4 +1,5 @@
 import { Application, Request, Response, NextFunction } from "express";
+import logger from "../config/logger";
 
 export default (app: Application): void => {
   app.use((req: Request, res: Response, next: NextFunction) => {
@@ -9,7 +10,11 @@ export default (app: Application): void => {
   app.use((err: any, req: Request, res: Response, next: NextFunction) => {
     // whenever you call next(err), this middleware will handle the error
     // always logs the error
-    console.error("ERROR", req.method, req.path, err);
+    logger.error("Unhandled request error", {
+      method: req.method,
+      path: req.path,
+      error: err,
+    });
 
     // only render if the error ocurred before sending the response
     if (!res.headersSent) {

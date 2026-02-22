@@ -5,6 +5,7 @@ import bcrypt from "bcrypt";
 import User from "../models/User.model";
 import isAuthenticated from "../middlewares/authMiddleware";
 import { requireRole } from "../middlewares/roleMiddleware";
+import logger from "../config/logger";
 
 router.get("/", isAuthenticated, async (req: any, res) => {
   try {
@@ -78,9 +79,9 @@ router.post(
       }
       res.status(500).json({ message: `${error}` });
     }
-  }
+  },
 );
-//TODO: finish the login workflow and role-based  authentication
+
 router.post("/login", async (req, res) => {
   const { username, password } = req.body;
 
@@ -119,7 +120,7 @@ router.post("/login", async (req, res) => {
       return;
     }
   } catch (error: any) {
-    console.log(error);
+    logger.error("Login error", { error, username });
     res.status(500).json({ message: `Invalid Credentials`, error: `${error}` });
   }
 });
@@ -141,39 +142,12 @@ router.patch("/resetpassword/:userId", isAuthenticated, async (req, res) => {
 
     const updatedUserPassword = await User.findByIdAndUpdate(
       userId,
-      updatedUser
+      updatedUser,
     );
 
     res.status(200).json({ message: "Password Upated Sucessfuly!" });
   } catch (error: any) {
     res.status(500).json({ message: "No user found" });
-  }
-});
-
-//TESTING PURPOSES ONLY - DELETE LATER
-router.post("/test-signup", async (req, res) => {
-  try {
-    const salt = bcrypt.genSaltSync(12);
-    const hashedPassword = bcrypt.hashSync(req.body.password, salt);
-
-    const hashedUser = {
-      username: req.body.username,
-      password: hashedPassword,
-      role: req.body.role || "user", // Default to 'user' if not specified, but admins can set it
-      resetPassword:
-        req.body.resetPassword !== undefined ? req.body.resetPassword : true,
-    };
-
-    const createdUser = await User.create(hashedUser);
-
-    res
-      .status(201)
-      .json({ message: "User created Sucessfully!", user: createdUser });
-  } catch (error: any) {
-    if (error?.code === 11000) {
-      return res.status(409).json({ message: "Username already exists" });
-    }
-    res.status(500).json({ message: `${error}` });
   }
 });
 
