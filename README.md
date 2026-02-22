@@ -9,6 +9,7 @@ A multi-tenant construction project management API built with Node.js, TypeScrip
 - 🏢 Multi-tenant client management
 - 🏗️ Construction project (obra) management
 - 📊 MongoDB data persistence
+- 🛡️ NoSQL injection protection
 
 ## Quick Start
 

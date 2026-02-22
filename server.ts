@@ -11,6 +11,32 @@ requiredEnvVars.forEach((key) => {
   }
 });
 
+const rateLimitEnvVars = [
+  "RATE_LIMIT_WINDOW_MS",
+  "RATE_LIMIT_MAX",
+  "AUTH_RATE_LIMIT_WINDOW_MS",
+  "AUTH_RATE_LIMIT_MAX",
+];
+
+rateLimitEnvVars.forEach((key) => {
+  const rawValue = process.env[key];
+
+  if (rawValue === undefined) {
+    return;
+  }
+
+  const parsedValue = Number(rawValue);
+  const isValidNumber = Number.isFinite(parsedValue);
+  const isPositive = parsedValue > 0;
+
+  if (!isValidNumber || !isPositive) {
+    logger.error(
+      `Invalid env var ${key}: expected a positive number, received "${rawValue}"`,
+    );
+    process.exit(1);
+  }
+});
+
 app.listen(PORT, () => {
   logger.info(`Server listening on http://localhost:${PORT}`);
 });
