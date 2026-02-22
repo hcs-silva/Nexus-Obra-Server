@@ -1,4 +1,4 @@
-import { Application } from "express";
+import { Application, NextFunction, Request, Response } from "express";
 import cors from "cors";
 import morgan from "morgan";
 import express from "express";
@@ -16,16 +16,23 @@ export default (app: Application): void => {
   );
   app.use(express.json());
   app.use(express.urlencoded({ extended: false }));
-  app.use(
-    mongoSanitize({
-      onSanitize: ({ key, req }) => {
+  app.use((req: Request, res: Response, next: NextFunction) => {
+    const requestPartsToSanitize = ["body", "params", "query"] as const;
+
+    requestPartsToSanitize.forEach((part) => {
+      const target = req[part] as Record<string, unknown> | undefined;
+
+      if (target && mongoSanitize.has(target)) {
+        mongoSanitize.sanitize(target);
         logger.warn("NoSQL injection payload sanitized", {
           method: req.method,
           path: req.originalUrl,
           ip: req.ip,
-          sanitizedKey: key,
+          requestPart: part,
         });
-      },
-    }),
-  );
+      }
+    });
+
+    next();
+  });
 };
