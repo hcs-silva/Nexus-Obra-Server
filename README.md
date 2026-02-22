@@ -106,6 +106,9 @@ pnpm build
 
 # Run production build
 pnpm start
+
+# Run endpoint smoke tests
+pnpm smoke:test
 ```
 
 ## License
