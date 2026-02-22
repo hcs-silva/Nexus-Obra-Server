@@ -7,6 +7,12 @@ import isAuthenticated from "../middlewares/authMiddleware";
 import { requireRole } from "../middlewares/roleMiddleware";
 import logger from "../config/logger";
 import { authRateLimiter } from "../middlewares/rateLimitMiddleware";
+import { validateBody } from "../middlewares/validationMiddleware";
+import {
+  loginSchema,
+  resetPasswordSchema,
+  signupSchema,
+} from "../validations/requestSchemas";
 
 router.get("/", isAuthenticated, async (req: any, res) => {
   try {
@@ -57,6 +63,7 @@ router.post(
   authRateLimiter,
   isAuthenticated,
   requireRole(["masterAdmin", "Admin"]),
+  validateBody(signupSchema),
   async (req, res) => {
     try {
       const salt = bcrypt.genSaltSync(12);
@@ -84,53 +91,64 @@ router.post(
   },
 );
 
-router.post("/login", authRateLimiter, async (req, res) => {
-  const { username, password } = req.body;
+router.post(
+  "/login",
+  authRateLimiter,
+  validateBody(loginSchema),
+  async (req, res) => {
+    const { username, password } = req.body;
 
-  try {
-    const foundUser = await User.findOne({ username: username });
-    if (!foundUser) {
-      res.status(404).json({ message: "User not found!" });
-      return;
+    try {
+      const foundUser = await User.findOne({ username: username });
+      if (!foundUser) {
+        res.status(404).json({ message: "User not found!" });
+        return;
+      }
+
+      const isPasswordValid = await bcrypt.compare(
+        password,
+        foundUser.password,
+      );
+
+      if (isPasswordValid) {
+        const data = {
+          _id: foundUser._id,
+          username: foundUser.username,
+          role: foundUser.role, // Include role in JWT token for authorization
+          clientId: foundUser.clientId, // Include client association in token
+        };
+
+        const authToken = jwt.sign(data, process.env.TOKEN_SECRET as string, {
+          algorithm: "HS256",
+          expiresIn: "10d",
+        });
+
+        res.status(200).json({
+          message: "Here is the token",
+          authToken,
+          userId: foundUser._id,
+          role: foundUser.role,
+          resetPassword: foundUser.resetPassword,
+          clientId: foundUser.clientId,
+        });
+      } else {
+        res.status(401).json({ message: "Invalid Credentials" });
+        return;
+      }
+    } catch (error: any) {
+      logger.error("Login error", { error, username });
+      res
+        .status(500)
+        .json({ message: `Invalid Credentials`, error: `${error}` });
     }
-
-    const isPasswordValid = await bcrypt.compare(password, foundUser.password);
-
-    if (isPasswordValid) {
-      const data = {
-        _id: foundUser._id,
-        username: foundUser.username,
-        role: foundUser.role, // Include role in JWT token for authorization
-        clientId: foundUser.clientId, // Include client association in token
-      };
-
-      const authToken = jwt.sign(data, process.env.TOKEN_SECRET as string, {
-        algorithm: "HS256",
-        expiresIn: "10d",
-      });
-
-      res.status(200).json({
-        message: "Here is the token",
-        authToken,
-        userId: foundUser._id,
-        role: foundUser.role,
-        resetPassword: foundUser.resetPassword,
-        clientId: foundUser.clientId,
-      });
-    } else {
-      res.status(401).json({ message: "Invalid Credentials" });
-      return;
-    }
-  } catch (error: any) {
-    logger.error("Login error", { error, username });
-    res.status(500).json({ message: `Invalid Credentials`, error: `${error}` });
-  }
-});
+  },
+);
 
 router.patch(
   "/resetpassword/:userId",
   authRateLimiter,
   isAuthenticated,
+  validateBody(resetPasswordSchema),
   async (req, res) => {
     const { newPassword } = req.body;
 

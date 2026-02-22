@@ -4,6 +4,11 @@ import User from "../models/User.model";
 import bcrypt from "bcrypt";
 import isAuthenticated from "../middlewares/authMiddleware";
 import logger from "../config/logger";
+import { validateBody } from "../middlewares/validationMiddleware";
+import {
+  createClientSchema,
+  updateClientSchema,
+} from "../validations/requestSchemas";
 
 const router = Router();
 
@@ -30,6 +35,7 @@ router.get("/", isAuthenticated, async (req: any, res: Response) => {
 router.post(
   "/createClient",
   isAuthenticated,
+  validateBody(createClientSchema),
   async (req: Request, res: Response) => {
     let adminUser: any;
     let newClient: any;
@@ -121,81 +127,95 @@ router.get("/:clientId", isAuthenticated, async (req: any, res: Response) => {
   }
 });
 
-router.patch("/me", isAuthenticated, async (req: any, res: Response) => {
-  try {
-    if (req.payload?.role !== "Admin") {
-      return res.status(403).json({
-        message: "Access denied. Admin role required.",
-      });
-    }
-
-    const tokenClientId = String(req.payload?.clientId || "");
-    if (!tokenClientId) {
-      return res.status(400).json({ message: "Client association missing." });
-    }
-
-    const allowedFields = [
-      "clientName",
-      "clientLogo",
-      "clientEmail",
-      "clientPhone",
-    ];
-    const updateData: Record<string, any> = {};
-
-    for (const key of allowedFields) {
-      if (Object.prototype.hasOwnProperty.call(req.body, key)) {
-        updateData[key] = req.body[key];
-      }
-    }
-
-    if (Object.keys(updateData).length === 0) {
-      return res.status(400).json({ message: "No valid fields to update." });
-    }
-
-    const updatedClient = await Client.findByIdAndUpdate(
-      tokenClientId,
-      updateData,
-      { new: true },
-    );
-
-    if (!updatedClient) {
-      return res.status(404).json({ message: "Client not found." });
-    }
-
-    res.status(200).json(updatedClient);
-  } catch (error: any) {
-    return res.status(500).json({ message: "Internal server error" });
-  }
-});
-
-router.patch("/:clientId", isAuthenticated, async (req: any, res: Response) => {
-  try {
-    const clientId = req.params.clientId;
-    const updateData = req.body;
-
-    // Non-masterAdmin users can only update their own client
-    if (req.payload?.role !== "masterAdmin") {
-      const tokenClientId = String(req.payload?.clientId || "");
-      if (!tokenClientId || tokenClientId !== String(clientId)) {
+router.patch(
+  "/me",
+  isAuthenticated,
+  validateBody(updateClientSchema),
+  async (req: any, res: Response) => {
+    try {
+      if (req.payload?.role !== "Admin") {
         return res.status(403).json({
-          message: "Access denied. Insufficient permissions for this client.",
+          message: "Access denied. Admin role required.",
         });
       }
+
+      const tokenClientId = String(req.payload?.clientId || "");
+      if (!tokenClientId) {
+        return res.status(400).json({ message: "Client association missing." });
+      }
+
+      const allowedFields = [
+        "clientName",
+        "clientLogo",
+        "clientEmail",
+        "clientPhone",
+      ];
+      const updateData: Record<string, any> = {};
+
+      for (const key of allowedFields) {
+        if (Object.prototype.hasOwnProperty.call(req.body, key)) {
+          updateData[key] = req.body[key];
+        }
+      }
+
+      if (Object.keys(updateData).length === 0) {
+        return res.status(400).json({ message: "No valid fields to update." });
+      }
+
+      const updatedClient = await Client.findByIdAndUpdate(
+        tokenClientId,
+        updateData,
+        { new: true },
+      );
+
+      if (!updatedClient) {
+        return res.status(404).json({ message: "Client not found." });
+      }
+
+      res.status(200).json(updatedClient);
+    } catch (error: any) {
+      return res.status(500).json({ message: "Internal server error" });
     }
+  },
+);
 
-    const updatedClient = await Client.findByIdAndUpdate(clientId, updateData, {
-      new: true,
-    });
+router.patch(
+  "/:clientId",
+  isAuthenticated,
+  validateBody(updateClientSchema),
+  async (req: any, res: Response) => {
+    try {
+      const clientId = req.params.clientId;
+      const updateData = req.body;
 
-    if (!updatedClient) {
-      return res.status(404).json({ message: "Client not found." });
+      // Non-masterAdmin users can only update their own client
+      if (req.payload?.role !== "masterAdmin") {
+        const tokenClientId = String(req.payload?.clientId || "");
+        if (!tokenClientId || tokenClientId !== String(clientId)) {
+          return res.status(403).json({
+            message: "Access denied. Insufficient permissions for this client.",
+          });
+        }
+      }
+
+      const updatedClient = await Client.findByIdAndUpdate(
+        clientId,
+        updateData,
+        {
+          new: true,
+        },
+      );
+
+      if (!updatedClient) {
+        return res.status(404).json({ message: "Client not found." });
+      }
+
+      res.status(200).json(updatedClient);
+    } catch (error: any) {
+      return res.status(500).json({ message: "Internal server error" });
     }
-
-    res.status(200).json(updatedClient);
-  } catch (error: any) {
-    return res.status(500).json({ message: "Internal server error" });
-  }
-});
+  },
+);
 
 router.delete(
   "/:clientId",
