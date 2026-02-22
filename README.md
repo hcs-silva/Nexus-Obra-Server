@@ -10,6 +10,10 @@ A multi-tenant construction project management API built with Node.js, TypeScrip
 - 🏗️ Construction project (obra) management
 - 📊 MongoDB data persistence
 - 🛡️ NoSQL injection protection
+- 🧱 Joi request validation for create/update/auth flows
+- 🚦 Global and auth-specific rate limiting
+- 🪖 Security headers via Helmet
+- 📝 Structured request and error logging (Morgan + Winston)
 
 ## Quick Start
 
@@ -52,31 +56,48 @@ See `.env.example` for required variables:
 - `RATE_LIMIT_MAX` - Max requests per window per IP (default: 100)
 - `AUTH_RATE_LIMIT_WINDOW_MS` - Auth rate limit window in milliseconds (default: 900000)
 - `AUTH_RATE_LIMIT_MAX` - Max auth attempts per window per IP (default: 5)
+- `LOG_LEVEL` - Logger level (default: `debug` in dev, `info` in production)
 
 ## API Endpoints
 
+### Health (`/api`)
+
+- `GET /` - Basic health check (`"All good in here"`)
+
 ### Users (`/users`)
 
-- `POST /signup` - Create new user
+- `POST /signup` - Create new user (requires authenticated `masterAdmin` or `Admin`)
 - `POST /login` - Authenticate user
-- `GET /` - List users (role-filtered)
-- `PATCH /resetpassword/:userId` - Reset password
+- `GET /` - List users (`masterAdmin` sees all, others see same `clientId`)
+- `PATCH /resetpassword/:userId` - Reset password (authenticated)
 
 ### Clients (`/clients`)
 
-- `POST /createClient` - Create new client
-- `GET /` - List all clients
-- `GET /:clientId` - Get client details
-- `PATCH /:clientId` - Update client
-- `DELETE /:clientId` - Delete client
+- `POST /createClient` - Create new client with admin user (`masterAdmin` only)
+- `GET /` - List clients (`masterAdmin` gets all, `Admin` gets own)
+- `GET /me` - Get own client details + members (`Admin` only)
+- `POST /me/members` - Add a member to own client (`Admin` only)
+- `DELETE /me/members/:userId` - Remove a member from own client (`Admin` only)
+- `GET /:clientId` - Get client details (`masterAdmin` any, `Admin` own only)
+- `PATCH /me` - Update own client profile (`Admin` only)
+- `PATCH /:clientId` - Update client (`masterAdmin` any, `Admin` own only)
+- `DELETE /:clientId` - Delete client (`masterAdmin` only)
 
 ### Obras/Projects (`/obras`)
 
-- `POST /createObra` - Create project
-- `GET /` - List projects
-- `GET /:obraId` - Get project details
-- `PATCH /:obraId` - Update project
-- `DELETE /:obraId` - Delete project
+- `POST /createObra` - Create project (`masterAdmin` any client, others own client only)
+- `GET /` - List projects (`masterAdmin` all, others own client only)
+- `GET /:obraId` - Get project details (client-scoped unless `masterAdmin`)
+- `PATCH /:obraId` - Update project (client-scoped unless `masterAdmin`)
+- `DELETE /:obraId` - Delete project (client-scoped unless `masterAdmin`)
+
+## Security & Validation
+
+- Global request sanitization against NoSQL injection on `body`, `params`, and `query`
+- Global API rate limiting on `/api`, `/users`, `/clients`, `/obras`
+- Stricter auth rate limiting on `/users/login`, `/users/signup`, and `/users/resetpassword/:userId`
+- Joi body validation on auth, client, and obra create/update routes
+- Environment validation at startup for required secrets and rate-limit numeric values
 
 ## Architecture
 

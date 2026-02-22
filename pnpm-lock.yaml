@@ -54,6 +54,9 @@ importers:
         specifier: ^3.19.0
         version: 3.19.0
     devDependencies:
+      '@express-rate-limit/tsconfig':
+        specifier: ^1.0.2
+        version: 1.0.2
       '@tsconfig/node22':
         specifier: ^22.0.5
         version: 22.0.5
@@ -81,6 +84,9 @@ importers:
       ts-node-dev:
         specifier: ^2.0.0
         version: 2.0.0(@types/node@25.3.0)(typescript@5.9.3)
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
 
 packages:
 
@@ -94,6 +100,9 @@ packages:
 
   '@dabh/diagnostics@2.0.8':
     resolution: {integrity: sha512-R4MSXTVnuMzGD7bzHdW2ZhhdPC/igELENcq5IjEverBvq5hn1SXCWcsi6eSsdWP0/Ur+SItRRjAktmdoX/8R/Q==}
+
+  '@express-rate-limit/tsconfig@1.0.2':
+    resolution: {integrity: sha512-BMSuJSe5fITRUZRLModNIXOTjVP4TcqOXO7ohW5OwtHNNGJ48HvaKH6zuqP8CjEEcbUmjheXk9rSYUF3tDu0tA==}
 
   '@hapi/address@5.1.1':
     resolution: {integrity: sha512-A+po2d/dVoY7cYajycYI43ZbYMXukuopIsqCjh5QzsBCipDtdofHntljDlpccMjIfTy6UOkg+5KPriwYch2bXA==}
@@ -969,6 +978,8 @@ snapshots:
       '@so-ric/colorspace': 1.1.6
       enabled: 2.0.0
       kuler: 2.0.0
+
+  '@express-rate-limit/tsconfig@1.0.2': {}
 
   '@hapi/address@5.1.1':
     dependencies:
