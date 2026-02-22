@@ -101,19 +101,47 @@ See `.env.example` for required variables:
 
 ## Architecture
 
+### Runtime Flow
+
+1. `server.ts` validates required environment variables (`TOKEN_SECRET`, `MONGODB_URI`) plus rate-limit numeric envs, then starts the HTTP server.
+2. `app.ts` boots the Express app, initializes MongoDB via `db/index.ts`, and applies platform middleware (`cors`, `helmet`, parsers, request logging, and NoSQL sanitization).
+3. Global rate limiting is applied per top-level API area (`/api`, `/users`, `/clients`, `/obras`), with stricter auth limits for login/signup/reset-password routes.
+4. Route modules apply authentication (`authMiddleware`), role authorization (`roleMiddleware`), and Joi payload validation (`validationMiddleware`) before controller logic.
+5. Request handlers access MongoDB through Mongoose models (`User`, `Client`, `Obra`) with tenant-aware access checks based on JWT payload (`role`, `clientId`).
+6. `error-handling/index.ts` provides fallback 404 and centralized 500 error responses with structured logging.
+
 ```text
-gestao-obra-server/
-├── app.ts              # Express app configuration
-├── server.ts           # Server entry point
-├── config/             # App configuration
-├── db/                 # Database connection
-├── models/             # Mongoose models
+Server/
+├── app.ts                     # Express composition: middleware, rate limits, route mounting
+├── server.ts                  # Process bootstrap, env validation, HTTP listener
+├── config/
+│   ├── index.ts               # Core middleware (CORS, morgan->winston, parsers, sanitize)
+│   └── logger.ts              # Winston logger configuration
+├── db/
+│   └── index.ts               # MongoDB connection bootstrap
+├── error-handling/
+│   └── index.ts               # 404 + centralized error middleware
+├── middlewares/
+│   ├── authMiddleware.ts      # JWT verification, payload attachment
+│   ├── roleMiddleware.ts      # Role-based authorization guard
+│   ├── validationMiddleware.ts# Joi request-body validation helper
+│   └── rateLimitMiddleware.ts # Global and auth-specific rate limiters
+├── validations/
+│   └── requestSchemas.ts      # Joi schemas for auth, client, obra operations
+├── models/
 │   ├── User.model.ts
 │   ├── Client.model.ts
 │   └── Obra.model.ts
-├── routes/             # API routes
-├── middlewares/        # Auth & role middleware
-└── error-handling/     # Error handlers
+├── routes/
+│   ├── index.routes.ts        # Health endpoint
+│   ├── user.routes.ts         # Auth + user management
+│   ├── client.routes.ts       # Tenant/client + member management
+│   └── obras.routes.ts        # Project (obra) CRUD
+├── types/
+│   └── index.ts               # Shared TypeScript interfaces
+├── scripts/
+│   └── smoke-test.sh          # Endpoint smoke testing script
+└── Development-Reports/       # Production/readiness/testing documentation
 ```
 
 ## Development
