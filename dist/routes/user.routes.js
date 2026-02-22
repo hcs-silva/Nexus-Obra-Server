@@ -10,6 +10,7 @@ const bcrypt_1 = __importDefault(require("bcrypt"));
 const User_model_1 = __importDefault(require("../models/User.model"));
 const authMiddleware_1 = __importDefault(require("../middlewares/authMiddleware"));
 const roleMiddleware_1 = require("../middlewares/roleMiddleware");
+const logger_1 = __importDefault(require("../config/logger"));
 router.get("/", authMiddleware_1.default, async (req, res) => {
     try {
         // If requester is masterAdmin return all users
@@ -72,7 +73,6 @@ router.post("/signup", authMiddleware_1.default, (0, roleMiddleware_1.requireRol
         res.status(500).json({ message: `${error}` });
     }
 });
-//TODO: finish the login workflow and role-based  authentication
 router.post("/login", async (req, res) => {
     const { username, password } = req.body;
     try {
@@ -108,7 +108,7 @@ router.post("/login", async (req, res) => {
         }
     }
     catch (error) {
-        console.log(error);
+        logger_1.default.error("Login error", { error, username });
         res.status(500).json({ message: `Invalid Credentials`, error: `${error}` });
     }
 });
@@ -127,29 +127,6 @@ router.patch("/resetpassword/:userId", authMiddleware_1.default, async (req, res
     }
     catch (error) {
         res.status(500).json({ message: "No user found" });
-    }
-});
-//TESTING PURPOSES ONLY - DELETE LATER
-router.post("/test-signup", async (req, res) => {
-    try {
-        const salt = bcrypt_1.default.genSaltSync(12);
-        const hashedPassword = bcrypt_1.default.hashSync(req.body.password, salt);
-        const hashedUser = {
-            username: req.body.username,
-            password: hashedPassword,
-            role: req.body.role || "user", // Default to 'user' if not specified, but admins can set it
-            resetPassword: req.body.resetPassword !== undefined ? req.body.resetPassword : true,
-        };
-        const createdUser = await User_model_1.default.create(hashedUser);
-        res
-            .status(201)
-            .json({ message: "User created Sucessfully!", user: createdUser });
-    }
-    catch (error) {
-        if (error?.code === 11000) {
-            return res.status(409).json({ message: "Username already exists" });
-        }
-        res.status(500).json({ message: `${error}` });
     }
 });
 exports.default = router;

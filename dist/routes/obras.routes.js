@@ -7,6 +7,80 @@ const express_1 = require("express");
 const Obra_model_1 = __importDefault(require("../models/Obra.model"));
 const authMiddleware_1 = __importDefault(require("../middlewares/authMiddleware"));
 const router = (0, express_1.Router)();
+// router.post("/seedExamplesPublic", async (req: Request, res: Response) => {
+//   try {
+//     if (process.env.NODE_ENV === "production") {
+//       return res.status(403).json({ message: "Seed endpoint disabled." });
+//     }
+//     let clientId = req.body.clientId ?? req.query.clientId;
+//     if (!clientId) {
+//       const userWithClient = await User.findOne({ clientId: { $ne: null } })
+//         .select("clientId")
+//         .lean();
+//       clientId = userWithClient?.clientId;
+//     }
+//     if (!clientId) {
+//       return res.status(400).json({
+//         message: "Client ID is required for seeding in this environment.",
+//       });
+//     }
+//     const responsibleUsers = Array.isArray(req.body.responsibleUsers)
+//       ? req.body.responsibleUsers
+//       : [];
+//     const examples = [
+//       {
+//         obraName: "Obra Central",
+//         obraDescription: "Initial planning and permits",
+//         obraLocation: "Porto",
+//         obraStatus: "planning",
+//         startDate: new Date("2025-11-01"),
+//         budget: 250000,
+//         clientId,
+//         responsibleUsers,
+//       },
+//       {
+//         obraName: "Renovacao Bairro",
+//         obraDescription: "Structural and electrical updates",
+//         obraLocation: "Lisboa",
+//         obraStatus: "in-progress",
+//         startDate: new Date("2025-09-15"),
+//         endDate: new Date("2026-03-20"),
+//         budget: 780000,
+//         clientId,
+//         responsibleUsers,
+//       },
+//       {
+//         obraName: "Parque Comercial",
+//         obraDescription: "Retail and parking construction",
+//         obraLocation: "Braga",
+//         obraStatus: "on-hold",
+//         startDate: new Date("2025-06-10"),
+//         budget: 1200000,
+//         clientId,
+//         responsibleUsers,
+//       },
+//       {
+//         obraName: "Complexo Escolar",
+//         obraDescription: "Final finishing and inspections",
+//         obraLocation: "Coimbra",
+//         obraStatus: "completed",
+//         startDate: new Date("2024-02-01"),
+//         endDate: new Date("2025-07-30"),
+//         budget: 540000,
+//         clientId,
+//         responsibleUsers,
+//       },
+//     ];
+//     const created = await Obra.insertMany(examples);
+//     res.status(201).json({
+//       message: "Example obras created successfully",
+//       count: created.length,
+//       obras: created,
+//     });
+//   } catch (error: any) {
+//     return res.status(500).json({ message: "Internal server error" });
+//   }
+// });
 router.get("/", authMiddleware_1.default, async (req, res) => {
     try {
         let query = {};
@@ -116,7 +190,8 @@ router.patch("/:obraId", authMiddleware_1.default, async (req, res) => {
                 });
             }
             // Prevent non-masterAdmin from changing clientId
-            if (updateData.clientId && String(updateData.clientId) !== tokenClientId) {
+            if (updateData.clientId &&
+                String(updateData.clientId) !== tokenClientId) {
                 return res.status(403).json({
                     message: "Access denied. Cannot change client assignment.",
                 });

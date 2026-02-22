@@ -1,4 +1,5 @@
 import { Request, Response, NextFunction } from "express";
+import logger from "../config/logger";
 
 /**
  * Role-based authorization middleware
@@ -27,7 +28,10 @@ export const requireRole = (allowedRoles: string[]) => {
       // User has required role, proceed to next middleware
       next();
     } catch (error) {
-      console.error("Role authorization error:", error);
+      logger.error("Role authorization error", {
+        allowedRoles,
+        error,
+      });
       return res.status(500).json({ message: "Authorization error" });
     }
   };

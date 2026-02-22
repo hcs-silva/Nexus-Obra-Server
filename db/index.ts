@@ -1,12 +1,14 @@
 import mongoose from "mongoose";
+import logger from "../config/logger";
 
-const MONGO_URI = process.env.MONGODB_URI || "mongodb://127.0.0.1:27017/gestao-obra-server";
+const MONGO_URI =
+  process.env.MONGODB_URI || "mongodb://127.0.0.1:27017/gestao-obra-server";
 
 mongoose
   .connect(MONGO_URI)
   .then(() => {
-    console.log("Connected to MongoDB");
+    logger.info("Connected to MongoDB");
   })
-  .catch(err => {
-    console.error("MongoDB connection error:", err);
+  .catch((err) => {
+    logger.error("MongoDB connection error", { error: err });
   });

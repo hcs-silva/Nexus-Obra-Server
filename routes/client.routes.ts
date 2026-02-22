@@ -3,6 +3,7 @@ import Client from "../models/Client.model";
 import User from "../models/User.model";
 import bcrypt from "bcrypt";
 import isAuthenticated from "../middlewares/authMiddleware";
+import logger from "../config/logger";
 
 const router = Router();
 
@@ -113,7 +114,7 @@ router.get("/:clientId", isAuthenticated, async (req: any, res: Response) => {
     if (!client) {
       return res.status(404).json({ message: "Client not found." });
     }
-    console.log(client);
+    logger.debug("Client fetched", { clientId: client._id });
     res.status(200).json(client);
   } catch (error: any) {
     return res.status(500).json({ message: "Internal server error" });

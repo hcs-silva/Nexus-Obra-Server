@@ -5,6 +5,7 @@ import bcrypt from "bcrypt";
 import User from "../models/User.model";
 import isAuthenticated from "../middlewares/authMiddleware";
 import { requireRole } from "../middlewares/roleMiddleware";
+import logger from "../config/logger";
 
 router.get("/", isAuthenticated, async (req: any, res) => {
   try {
@@ -78,7 +79,7 @@ router.post(
       }
       res.status(500).json({ message: `${error}` });
     }
-  }
+  },
 );
 
 router.post("/login", async (req, res) => {
@@ -119,7 +120,7 @@ router.post("/login", async (req, res) => {
       return;
     }
   } catch (error: any) {
-    console.log(error);
+    logger.error("Login error", { error, username });
     res.status(500).json({ message: `Invalid Credentials`, error: `${error}` });
   }
 });
@@ -141,7 +142,7 @@ router.patch("/resetpassword/:userId", isAuthenticated, async (req, res) => {
 
     const updatedUserPassword = await User.findByIdAndUpdate(
       userId,
-      updatedUser
+      updatedUser,
     );
 
     res.status(200).json({ message: "Password Upated Sucessfuly!" });
@@ -149,7 +150,5 @@ router.patch("/resetpassword/:userId", isAuthenticated, async (req, res) => {
     res.status(500).json({ message: "No user found" });
   }
 });
-
-
 
 export default router;
