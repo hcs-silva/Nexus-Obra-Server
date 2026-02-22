@@ -15,6 +15,7 @@ cleanup() {
     wait "${SERVER_PID}" 2>/dev/null || true
   fi
   rm -f ./tmp-smoke-token.txt
+  rm -f ./tmp-smoke-user-token.txt
 }
 
 trap cleanup EXIT
@@ -42,6 +43,8 @@ fi
 
 node -e "const fs=require('fs'); const jwt=require('jsonwebtoken'); fs.writeFileSync('./tmp-smoke-token.txt', jwt.sign({role:'Admin',clientId:'65f000000000000000000001'}, process.env.TOKEN_SECRET || 'test-secret'));"
 AUTH_TOKEN=$(cat ./tmp-smoke-token.txt)
+node -e "const fs=require('fs'); const jwt=require('jsonwebtoken'); fs.writeFileSync('./tmp-smoke-user-token.txt', jwt.sign({role:'user',clientId:'65f000000000000000000001'}, process.env.TOKEN_SECRET || 'test-secret'));"
+USER_TOKEN=$(cat ./tmp-smoke-user-token.txt)
 
 assert_status() {
   local expected="$1"
@@ -71,6 +74,31 @@ assert_status() {
   echo "[smoke] PASS: ${label} => ${status}"
 }
 
+assert_status_with_token() {
+  local expected="$1"
+  local label="$2"
+  local method="$3"
+  local path="$4"
+  local token="$5"
+  local body="${6:-}"
+
+  local cmd=(curl -s -o /tmp/smoke-body.out -w "%{http_code}" -X "${method}" "${BASE_URL}${path}" -H "Content-Type: application/json" -H "Authorization: Bearer ${token}")
+  if [[ -n "${body}" ]]; then
+    cmd+=( -d "${body}" )
+  fi
+
+  local status
+  status=$("${cmd[@]}")
+
+  if [[ "${status}" != "${expected}" ]]; then
+    echo "[smoke] FAIL: ${label} (expected ${expected}, got ${status})"
+    cat /tmp/smoke-body.out || true
+    exit 1
+  fi
+
+  echo "[smoke] PASS: ${label} => ${status}"
+}
+
 assert_status "200" "GET /api" "GET" "/api"
 assert_status "401" "GET /users unauthenticated" "GET" "/users"
 assert_status "400" "POST /users/login invalid body" "POST" "/users/login" "{}"
@@ -80,5 +108,11 @@ assert_status "400" "POST /obras/createObra invalid body (authenticated)" "POST"
 assert_status "400" "PATCH /users/resetpassword invalid body (authenticated)" "PATCH" "/users/resetpassword/65f000000000000000000002" "{}" "yes"
 assert_status "400" "PATCH /clients/me invalid body (authenticated)" "PATCH" "/clients/me" "{}" "yes"
 assert_status "400" "PATCH /obras/:obraId invalid body (authenticated)" "PATCH" "/obras/65f000000000000000000003" "{}" "yes"
+assert_status_with_token "403" "GET /clients/me denied for non-admin" "GET" "/clients/me" "${USER_TOKEN}"
+assert_status_with_token "404" "GET /clients/me for admin without seeded client" "GET" "/clients/me" "${AUTH_TOKEN}"
+assert_status_with_token "403" "POST /clients/me/members denied for non-admin" "POST" "/clients/me/members" "${USER_TOKEN}" '{"userId":"65f000000000000000000005"}'
+assert_status_with_token "400" "POST /clients/me/members invalid body (admin)" "POST" "/clients/me/members" "${AUTH_TOKEN}" "{}"
+assert_status_with_token "403" "DELETE /clients/me/members/:id denied for non-admin" "DELETE" "/clients/me/members/65f000000000000000000005" "${USER_TOKEN}"
+assert_status_with_token "400" "DELETE /clients/me/members/:id invalid id (admin)" "DELETE" "/clients/me/members/not-an-object-id" "${AUTH_TOKEN}"
 
 echo "[smoke] All checks passed."

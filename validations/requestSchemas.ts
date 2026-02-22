@@ -35,6 +35,10 @@ export const updateClientSchema = Joi.object({
   Members: Joi.array().items(Joi.string().pattern(objectIdPattern)).optional(),
 }).min(1);
 
+export const manageClientMemberSchema = Joi.object({
+  userId: Joi.string().pattern(objectIdPattern).required(),
+});
+
 export const createObraSchema = Joi.object({
   obraName: Joi.string().trim().min(1).required(),
   obraDescription: Joi.string().trim().allow("").optional(),

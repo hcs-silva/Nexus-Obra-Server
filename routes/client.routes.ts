@@ -1,4 +1,5 @@
 import { Router, Request, Response } from "express";
+import { Types } from "mongoose";
 import Client from "../models/Client.model";
 import User from "../models/User.model";
 import bcrypt from "bcrypt";
@@ -7,17 +8,69 @@ import logger from "../config/logger";
 import { validateBody } from "../middlewares/validationMiddleware";
 import {
   createClientSchema,
+  manageClientMemberSchema,
   updateClientSchema,
 } from "../validations/requestSchemas";
 
 const router = Router();
 
+const isMasterAdmin = (req: any): boolean =>
+  req.payload?.role === "masterAdmin";
+const isAdmin = (req: any): boolean => req.payload?.role === "Admin";
+const getTokenClientId = (req: any): string =>
+  String(req.payload?.clientId || "");
+
+const handleClientRouteError = (
+  res: Response,
+  error: any,
+  context: string,
+): Response => {
+  logger.error(`Client route error: ${context}`, { error });
+
+  if (error?.code === 11000) {
+    return res.status(409).json({
+      message: "Duplicate resource",
+      field: Object.keys(error.keyValue || {})[0],
+    });
+  }
+
+  if (error?.name === "ValidationError") {
+    return res.status(400).json({ message: "Validation error" });
+  }
+
+  if (error?.name === "CastError") {
+    return res.status(400).json({ message: "Invalid resource identifier." });
+  }
+
+  return res.status(500).json({ message: "Internal server error" });
+};
+
 router.get("/", isAuthenticated, async (req: any, res: Response) => {
   try {
-    const clients = await Client.find().sort({ clientName: 1 }).lean();
-    res.status(200).json(clients);
+    if (isMasterAdmin(req)) {
+      const clients = await Client.find().sort({ clientName: 1 }).lean();
+      return res.status(200).json(clients);
+    }
+
+    if (isAdmin(req)) {
+      const tokenClientId = getTokenClientId(req);
+      if (!tokenClientId) {
+        return res.status(400).json({ message: "Client association missing." });
+      }
+
+      const client = await Client.findById(tokenClientId).lean();
+      if (!client) {
+        return res.status(404).json({ message: "Client not found." });
+      }
+
+      return res.status(200).json([client]);
+    }
+
+    return res.status(403).json({
+      message: "Access denied. Only masterAdmin or Admin can access clients.",
+    });
   } catch (error: any) {
-    return res.status(500).json({ message: "Internal server error" });
+    return handleClientRouteError(res, error, "list clients");
   }
 });
 
@@ -40,14 +93,16 @@ router.post(
     let adminUser: any;
     let newClient: any;
     try {
+      if ((req as any).payload?.role !== "masterAdmin") {
+        return res.status(403).json({
+          message: "Access denied. Only masterAdmin can create clients.",
+        });
+      }
+
       const clientName = (req.body.clientName as string)?.trim();
       const adminUsername = (req.body.adminUsername as string)?.trim();
-      const adminPassword = req.body.adminPassword as string;
       const clientLogo = req.body.clientLogo as string;
 
-      if (!clientName || !adminUsername || !adminPassword) {
-        return res.status(400).json({ message: "All Fields are Required." });
-      }
       const hashedPassword = await bcrypt.hash(req.body.adminPassword, 12);
 
       adminUser = await User.create({
@@ -62,6 +117,7 @@ router.post(
           clientName: clientName,
           clientAdmin: adminUser._id,
           clientLogo: clientLogo,
+          Members: [adminUser._id],
         });
       } catch (clientError: any) {
         await User.findByIdAndDelete(adminUser._id);
@@ -90,14 +146,141 @@ router.post(
       if (adminUser && !newClient) {
         await User.findByIdAndDelete(adminUser._id);
       }
-      if (error?.code === 11000) {
-        //console.log("Duplicate key error:", error.keyValue);
-        return res.status(409).json({
-          message: "Duplicate resource",
-          field: Object.keys(error.keyValue)[0],
+      return handleClientRouteError(res, error, "create client");
+    }
+  },
+);
+
+router.get("/me", isAuthenticated, async (req: any, res: Response) => {
+  try {
+    if (!isAdmin(req)) {
+      return res.status(403).json({
+        message: "Access denied. Admin role required.",
+      });
+    }
+
+    const tokenClientId = getTokenClientId(req);
+    if (!tokenClientId) {
+      return res.status(400).json({ message: "Client association missing." });
+    }
+
+    const client = await Client.findById(tokenClientId)
+      .populate("clientAdmin", "username role")
+      .populate("Members", "username role clientId")
+      .lean();
+
+    if (!client) {
+      return res.status(404).json({ message: "Client not found." });
+    }
+
+    return res.status(200).json(client);
+  } catch (error: any) {
+    return handleClientRouteError(res, error, "get own client details");
+  }
+});
+
+router.post(
+  "/me/members",
+  isAuthenticated,
+  validateBody(manageClientMemberSchema),
+  async (req: any, res: Response) => {
+    try {
+      if (!isAdmin(req)) {
+        return res.status(403).json({
+          message: "Access denied. Admin role required.",
         });
       }
-      return res.status(500).json({ message: "Internal server error" });
+
+      const tokenClientId = getTokenClientId(req);
+      if (!tokenClientId) {
+        return res.status(400).json({ message: "Client association missing." });
+      }
+
+      const { userId } = req.body;
+      const client = await Client.findById(tokenClientId);
+
+      if (!client) {
+        return res.status(404).json({ message: "Client not found." });
+      }
+
+      const user = await User.findById(userId);
+      if (!user) {
+        return res.status(404).json({ message: "User not found." });
+      }
+
+      if (user.role === "masterAdmin") {
+        return res.status(400).json({
+          message: "masterAdmin users cannot be assigned as client members.",
+        });
+      }
+
+      if (user.clientId && String(user.clientId) !== tokenClientId) {
+        return res.status(409).json({
+          message: "User is already assigned to another client.",
+        });
+      }
+
+      await User.findByIdAndUpdate(userId, {
+        $set: { clientId: tokenClientId },
+      });
+      await Client.findByIdAndUpdate(tokenClientId, {
+        $addToSet: { Members: user._id },
+      });
+
+      return res.status(200).json({ message: "Member added successfully." });
+    } catch (error: any) {
+      return handleClientRouteError(res, error, "add client member");
+    }
+  },
+);
+
+router.delete(
+  "/me/members/:userId",
+  isAuthenticated,
+  async (req: any, res: Response) => {
+    try {
+      if (!isAdmin(req)) {
+        return res.status(403).json({
+          message: "Access denied. Admin role required.",
+        });
+      }
+
+      const tokenClientId = getTokenClientId(req);
+      if (!tokenClientId) {
+        return res.status(400).json({ message: "Client association missing." });
+      }
+
+      const { userId } = req.params;
+      if (!Types.ObjectId.isValid(userId)) {
+        return res.status(400).json({ message: "Invalid user identifier." });
+      }
+
+      const client = await Client.findById(tokenClientId);
+      if (!client) {
+        return res.status(404).json({ message: "Client not found." });
+      }
+
+      if (String(client.clientAdmin) === userId) {
+        return res.status(400).json({
+          message: "Cannot remove the client admin from members.",
+        });
+      }
+
+      const user = await User.findById(userId);
+      if (!user || String(user.clientId || "") !== tokenClientId) {
+        return res.status(404).json({
+          message: "Member not found in this client.",
+        });
+      }
+
+      await User.findByIdAndUpdate(userId, { $unset: { clientId: "" } });
+      await Client.findByIdAndUpdate(tokenClientId, {
+        $pull: { Members: user._id },
+      });
+
+      return res.status(200).json({ message: "Member removed successfully." });
+    } catch (error: any) {
+      return handleClientRouteError(res, error, "remove client member");
     }
   },
 );
@@ -105,9 +288,18 @@ router.post(
 router.get("/:clientId", isAuthenticated, async (req: any, res: Response) => {
   try {
     const clientId = req.params.clientId;
+    if (!Types.ObjectId.isValid(clientId)) {
+      return res.status(400).json({ message: "Invalid client identifier." });
+    }
 
     // Non-masterAdmin users can only access their own client
-    if (req.payload?.role !== "masterAdmin") {
+    if (!isMasterAdmin(req)) {
+      if (!isAdmin(req)) {
+        return res.status(403).json({
+          message: "Access denied. Admin or masterAdmin role required.",
+        });
+      }
+
       const tokenClientId = String(req.payload?.clientId || "");
       if (!tokenClientId || tokenClientId !== String(clientId)) {
         return res.status(403).json({
@@ -123,7 +315,7 @@ router.get("/:clientId", isAuthenticated, async (req: any, res: Response) => {
     logger.debug("Client fetched", { clientId: client._id });
     res.status(200).json(client);
   } catch (error: any) {
-    return res.status(500).json({ message: "Internal server error" });
+    return handleClientRouteError(res, error, "get client by id");
   }
 });
 
@@ -133,7 +325,7 @@ router.patch(
   validateBody(updateClientSchema),
   async (req: any, res: Response) => {
     try {
-      if (req.payload?.role !== "Admin") {
+      if (!isAdmin(req)) {
         return res.status(403).json({
           message: "Access denied. Admin role required.",
         });
@@ -158,10 +350,6 @@ router.patch(
         }
       }
 
-      if (Object.keys(updateData).length === 0) {
-        return res.status(400).json({ message: "No valid fields to update." });
-      }
-
       const updatedClient = await Client.findByIdAndUpdate(
         tokenClientId,
         updateData,
@@ -174,7 +362,7 @@ router.patch(
 
       res.status(200).json(updatedClient);
     } catch (error: any) {
-      return res.status(500).json({ message: "Internal server error" });
+      return handleClientRouteError(res, error, "update own client");
     }
   },
 );
@@ -186,10 +374,20 @@ router.patch(
   async (req: any, res: Response) => {
     try {
       const clientId = req.params.clientId;
+      if (!Types.ObjectId.isValid(clientId)) {
+        return res.status(400).json({ message: "Invalid client identifier." });
+      }
+
       const updateData = req.body;
 
       // Non-masterAdmin users can only update their own client
-      if (req.payload?.role !== "masterAdmin") {
+      if (!isMasterAdmin(req)) {
+        if (!isAdmin(req)) {
+          return res.status(403).json({
+            message: "Access denied. Admin or masterAdmin role required.",
+          });
+        }
+
         const tokenClientId = String(req.payload?.clientId || "");
         if (!tokenClientId || tokenClientId !== String(clientId)) {
           return res.status(403).json({
@@ -212,7 +410,7 @@ router.patch(
 
       res.status(200).json(updatedClient);
     } catch (error: any) {
-      return res.status(500).json({ message: "Internal server error" });
+      return handleClientRouteError(res, error, "update client by id");
     }
   },
 );
@@ -223,10 +421,13 @@ router.delete(
   async (req: any, res: Response) => {
     try {
       const clientId = req.params.clientId;
+      if (!Types.ObjectId.isValid(clientId)) {
+        return res.status(400).json({ message: "Invalid client identifier." });
+      }
 
-      if (req.payload?.role !== "masterAdmin") {
+      if (!isMasterAdmin(req)) {
         return res.status(403).json({
-          message: "Access denied. Insufficient permissions for this client.",
+          message: "Access denied. masterAdmin role required.",
         });
       }
 
@@ -244,7 +445,7 @@ router.delete(
 
       res.status(200).json({ message: "Client deleted successfully." });
     } catch (error: any) {
-      return res.status(500).json({ message: "Internal server error" });
+      return handleClientRouteError(res, error, "delete client");
     }
   },
 );
