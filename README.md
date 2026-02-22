@@ -49,6 +49,8 @@ See `.env.example` for required variables:
 - `PORT` - Server port (default: 5005)
 - `RATE_LIMIT_WINDOW_MS` - Rate limit window in milliseconds (default: 900000)
 - `RATE_LIMIT_MAX` - Max requests per window per IP (default: 100)
+- `AUTH_RATE_LIMIT_WINDOW_MS` - Auth rate limit window in milliseconds (default: 900000)
+- `AUTH_RATE_LIMIT_MAX` - Max auth attempts per window per IP (default: 5)
 
 ## API Endpoints
 
