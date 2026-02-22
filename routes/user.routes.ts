@@ -6,6 +6,7 @@ import User from "../models/User.model";
 import isAuthenticated from "../middlewares/authMiddleware";
 import { requireRole } from "../middlewares/roleMiddleware";
 import logger from "../config/logger";
+import { authRateLimiter } from "../middlewares/rateLimitMiddleware";
 
 router.get("/", isAuthenticated, async (req: any, res) => {
   try {
@@ -53,6 +54,7 @@ router.get("/", isAuthenticated, async (req: any, res) => {
 // Signup route - only accessible to masterAdmin and Admin roles
 router.post(
   "/signup",
+  authRateLimiter,
   isAuthenticated,
   requireRole(["masterAdmin", "Admin"]),
   async (req, res) => {
@@ -82,7 +84,7 @@ router.post(
   },
 );
 
-router.post("/login", async (req, res) => {
+router.post("/login", authRateLimiter, async (req, res) => {
   const { username, password } = req.body;
 
   try {
@@ -125,30 +127,35 @@ router.post("/login", async (req, res) => {
   }
 });
 
-router.patch("/resetpassword/:userId", isAuthenticated, async (req, res) => {
-  const { newPassword } = req.body;
+router.patch(
+  "/resetpassword/:userId",
+  authRateLimiter,
+  isAuthenticated,
+  async (req, res) => {
+    const { newPassword } = req.body;
 
-  const { userId } = req.params;
+    const { userId } = req.params;
 
-  try {
-    const salt = bcrypt.genSaltSync(12);
+    try {
+      const salt = bcrypt.genSaltSync(12);
 
-    const newHashedPassword = bcrypt.hashSync(newPassword, salt);
+      const newHashedPassword = bcrypt.hashSync(newPassword, salt);
 
-    const updatedUser = {
-      password: newHashedPassword,
-      resetPassword: false,
-    };
+      const updatedUser = {
+        password: newHashedPassword,
+        resetPassword: false,
+      };
 
-    const updatedUserPassword = await User.findByIdAndUpdate(
-      userId,
-      updatedUser,
-    );
+      const updatedUserPassword = await User.findByIdAndUpdate(
+        userId,
+        updatedUser,
+      );
 
-    res.status(200).json({ message: "Password Upated Sucessfuly!" });
-  } catch (error: any) {
-    res.status(500).json({ message: "No user found" });
-  }
-});
+      res.status(200).json({ message: "Password Upated Sucessfuly!" });
+    } catch (error: any) {
+      res.status(500).json({ message: "No user found" });
+    }
+  },
+);
 
 export default router;
