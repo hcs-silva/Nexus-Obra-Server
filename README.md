@@ -16,13 +16,13 @@ A multi-tenant construction project management API built with Node.js, TypeScrip
 
 - Node.js 22+
 - MongoDB running locally or connection URI
-- npm or yarn
+- pnpm
 
 ### Installation
 
 ```bash
 # Install dependencies
-npm install
+pnpm install
 
 # Create .env file (see .env.example)
 cp .env.example .env
@@ -31,13 +31,13 @@ cp .env.example .env
 # Required: TOKEN_SECRET, MONGODB_URI
 
 # Start development server
-npm run dev
+pnpm dev
 
 # Build for production
-npm run build
+pnpm build
 
 # Start production server
-npm start
+pnpm start
 ```
 
 ### Environment Variables
@@ -47,6 +47,8 @@ See `.env.example` for required variables:
 - `TOKEN_SECRET` - Secret key for JWT signing
 - `MONGODB_URI` - MongoDB connection string
 - `PORT` - Server port (default: 5005)
+- `RATE_LIMIT_WINDOW_MS` - Rate limit window in milliseconds (default: 900000)
+- `RATE_LIMIT_MAX` - Max requests per window per IP (default: 100)
 
 ## API Endpoints
 
@@ -94,13 +96,13 @@ gestao-obra-server/
 
 ```bash
 # Run in development mode with auto-reload
-npm run dev
+pnpm dev
 
 # Build TypeScript
-npm run build
+pnpm build
 
 # Run production build
-npm start
+pnpm start
 ```
 
 ## License

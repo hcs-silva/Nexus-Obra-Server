@@ -9,7 +9,7 @@ import clientRoutes from "./routes/client.routes";
 import obrasRoutes from "./routes/obras.routes";
 import errorHandling from "./error-handling";
 import helmet from "helmet";
-import rateLimit from "express-rate-limit";
+import apiRateLimiter from "./middlewares/rateLimitMiddleware";
 
 dotenv.config();
 
@@ -18,7 +18,10 @@ const app: Application = express();
 config(app);
 
 app.use(helmet());
-app.use(rateLimit({ windowMs: 15 * 60 * 1000, max: 100 }));
+app.use("/api", apiRateLimiter);
+app.use("/users", apiRateLimiter);
+app.use("/clients", apiRateLimiter);
+app.use("/obras", apiRateLimiter);
 
 // Routes
 app.use("/api", indexRoutes);
