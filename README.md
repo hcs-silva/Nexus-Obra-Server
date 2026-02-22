@@ -104,16 +104,7 @@ npm run build
 npm start
 ```
 
-## Documentation
 
-- [Production Readiness Report](./PRODUCTION_READINESS_REPORT.md) - Comprehensive analysis
-- [Next Steps](./NEXT_STEPS.md) - Quick action items
-
-## Contributing
-
-1. Review the [Production Readiness Report](./PRODUCTION_READINESS_REPORT.md)
-2. Check the [Next Steps](./NEXT_STEPS.md) for priority tasks
-3. Follow the existing code structure and TypeScript patterns
 
 ## License
 
