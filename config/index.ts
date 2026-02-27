@@ -3,10 +3,31 @@ import cors from "cors";
 import morgan from "morgan";
 import express from "express";
 import mongoSanitize from "express-mongo-sanitize";
+import cookieParser from "cookie-parser";
 import logger from "./logger";
 
 export default (app: Application): void => {
-  app.use(cors());
+  const allowedOrigins = (
+    process.env.ALLOWED_ORIGINS || "http://localhost:5173"
+  )
+    .split(",")
+    .map((origin) => origin.trim())
+    .filter(Boolean);
+
+  app.use(
+    cors({
+      origin: (origin, callback) => {
+        if (!origin || allowedOrigins.includes(origin)) {
+          callback(null, true);
+          return;
+        }
+
+        callback(new Error("Not allowed by CORS"));
+      },
+      credentials: true,
+    }),
+  );
+  app.use(cookieParser());
   app.use(
     morgan("combined", {
       stream: {

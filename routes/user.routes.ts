@@ -45,8 +45,6 @@ router.get("/", isAuthenticated, async (req: any, res) => {
   }
 });
 
-
-
 // Signup route - only accessible to masterAdmin and Admin roles
 router.post(
   "/signup",
@@ -113,9 +111,17 @@ router.post(
           expiresIn: "10d",
         });
 
+        const isProduction = process.env.NODE_ENV === "production";
+        res.cookie("authToken", authToken, {
+          httpOnly: true,
+          secure: isProduction,
+          sameSite: isProduction ? "none" : "lax",
+          maxAge: 10 * 24 * 60 * 60 * 1000,
+          path: "/",
+        });
+
         res.status(200).json({
-          message: "Here is the token",
-          authToken,
+          message: "Login successful",
           userId: foundUser._id,
           role: foundUser.role,
           resetPassword: foundUser.resetPassword,
@@ -133,6 +139,19 @@ router.post(
     }
   },
 );
+
+router.post("/logout", (req, res) => {
+  const isProduction = process.env.NODE_ENV === "production";
+
+  res.clearCookie("authToken", {
+    httpOnly: true,
+    secure: isProduction,
+    sameSite: isProduction ? "none" : "lax",
+    path: "/",
+  });
+
+  res.status(200).json({ message: "Logout successful" });
+});
 
 router.patch(
   "/resetpassword/:userId",
