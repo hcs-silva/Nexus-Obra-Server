@@ -12,3 +12,14 @@ mongoose
   .catch((err) => {
     logger.error("MongoDB connection error", { error: err });
   });
+
+export const isDbConnected = (): boolean => mongoose.connection.readyState === 1;
+
+export const getDbReadyState = (): number => mongoose.connection.readyState;
+
+export const closeDbConnection = async (): Promise<void> => {
+  if (mongoose.connection.readyState !== 0) {
+    await mongoose.connection.close();
+    logger.info("MongoDB connection closed");
+  }
+};

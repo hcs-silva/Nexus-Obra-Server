@@ -14,6 +14,14 @@ import {
   signupSchema,
 } from "../validations/requestSchemas";
 
+const toSafeUser = (user: any) => ({
+  userId: user._id,
+  username: user.username,
+  role: user.role,
+  resetPassword: user.resetPassword,
+  clientId: user.clientId,
+});
+
 router.get("/", isAuthenticated, async (req: any, res) => {
   try {
     // If requester is masterAdmin return all users
@@ -45,6 +53,27 @@ router.get("/", isAuthenticated, async (req: any, res) => {
   }
 });
 
+router.get("/me", isAuthenticated, async (req: any, res) => {
+  try {
+    const userId = req.payload?._id;
+
+    if (!userId) {
+      return res.status(401).json({ message: "Invalid token payload" });
+    }
+
+    const foundUser = await User.findById(userId);
+
+    if (!foundUser) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    return res.status(200).json(toSafeUser(foundUser));
+  } catch (error: any) {
+    logger.error("Failed to fetch authenticated user", { error });
+    return res.status(500).json({ message: "Failed to fetch user profile" });
+  }
+});
+
 // Signup route - only accessible to masterAdmin and Admin roles
 router.post(
   "/signup",
@@ -67,9 +96,10 @@ router.post(
 
       const createdUser = await User.create(hashedUser);
 
-      res
-        .status(201)
-        .json({ message: "User created Sucessfully!", user: createdUser });
+      res.status(201).json({
+        message: "User created Sucessfully!",
+        user: toSafeUser(createdUser),
+      });
     } catch (error: any) {
       if (error?.code === 11000) {
         return res.status(409).json({ message: "Username already exists" });
@@ -87,7 +117,9 @@ router.post(
     const { username, password } = req.body;
 
     try {
-      const foundUser = await User.findOne({ username: username });
+      const foundUser = await User.findOne({ username: username }).select(
+        "+password",
+      );
       if (!foundUser) {
         res.status(404).json({ message: "User not found!" });
         return;

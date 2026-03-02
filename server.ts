@@ -1,5 +1,6 @@
 import app from "./app";
 import logger from "./config/logger";
+import { closeDbConnection } from "./db";
 
 const PORT = process.env.PORT || 5005;
 
@@ -43,6 +44,39 @@ rateLimitEnvVars.forEach((key) => {
   }
 });
 
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
   logger.info(`Server listening on http://localhost:${PORT}`);
 });
+
+const gracefulShutdown = (signal: "SIGINT" | "SIGTERM") => {
+  logger.info(`${signal} received. Starting graceful shutdown...`);
+
+  const forceCloseTimer = setTimeout(() => {
+    logger.error("Graceful shutdown timed out. Forcing process exit.");
+    process.exit(1);
+  }, 10000);
+
+  server.close(async (err) => {
+    clearTimeout(forceCloseTimer);
+
+    if (err) {
+      logger.error("Error while closing HTTP server", { error: err });
+      process.exit(1);
+      return;
+    }
+
+    try {
+      await closeDbConnection();
+      logger.info("Graceful shutdown completed.");
+      process.exit(0);
+    } catch (closeError) {
+      logger.error("Error while closing MongoDB connection", {
+        error: closeError,
+      });
+      process.exit(1);
+    }
+  });
+};
+
+process.on("SIGINT", () => gracefulShutdown("SIGINT"));
+process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
