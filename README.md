@@ -5,15 +5,19 @@ A multi-tenant construction project management API built with Node.js, TypeScrip
 ## Features
 
 - 🔐 JWT-based authentication
+- 🍪 Cookie-based auth token support (httpOnly) with bearer fallback
 - 👥 Role-based access control (masterAdmin, Admin, user, guest)
 - 🏢 Multi-tenant client management
-- 🏗️ Construction project (obra) management
+- 🏗️ Obra (project) management
+- ☁️ Signed Cloudinary upload signature endpoint (auth-protected)
 - 📊 MongoDB data persistence
 - 🛡️ NoSQL injection protection
 - 🧱 Joi request validation for create/update/auth flows
 - 🚦 Global and auth-specific rate limiting
 - 🪖 Security headers via Helmet
 - 📝 Structured request and error logging (Morgan + Winston)
+- ❤️ DB-aware health endpoint (`GET /api/health`)
+- 🧹 Graceful shutdown on `SIGINT` / `SIGTERM` (HTTP + DB close)
 
 ## Quick Start
 
@@ -33,7 +37,8 @@ pnpm install
 cp .env.example .env
 
 # Edit .env with your configuration
-# Required: TOKEN_SECRET, MONGODB_URI
+# Required: TOKEN_SECRET, MONGODB_URI,
+# CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET
 
 # Start development server
 pnpm dev
@@ -52,6 +57,10 @@ See `.env.example` for required variables:
 - `TOKEN_SECRET` - Secret key for JWT signing
 - `MONGODB_URI` - MongoDB connection string
 - `PORT` - Server port (default: 5005)
+- `ALLOWED_ORIGINS` - Comma-separated CORS allowlist (default: `http://localhost:5173`)
+- `CLOUDINARY_CLOUD_NAME` - Cloudinary cloud name (required)
+- `CLOUDINARY_API_KEY` - Cloudinary API key (required)
+- `CLOUDINARY_API_SECRET` - Cloudinary API secret (required)
 - `RATE_LIMIT_WINDOW_MS` - Rate limit window in milliseconds (default: 900000)
 - `RATE_LIMIT_MAX` - Max requests per window per IP (default: 100)
 - `AUTH_RATE_LIMIT_WINDOW_MS` - Auth rate limit window in milliseconds (default: 900000)
@@ -63,13 +72,20 @@ See `.env.example` for required variables:
 ### Health (`/api`)
 
 - `GET /` - Basic health check (`"All good in here"`)
+- `GET /health` - DB-aware health status (`ok`/`degraded`) with uptime, DB connection state, and timestamp
 
 ### Users (`/users`)
 
 - `POST /signup` - Create new user (requires authenticated `masterAdmin` or `Admin`)
 - `POST /login` - Authenticate user
+- `POST /logout` - Clear auth cookie
+- `GET /me` - Get authenticated user profile (safe projection)
 - `GET /` - List users (`masterAdmin` sees all, others see same `clientId`)
 - `PATCH /resetpassword/:userId` - Reset password (authenticated)
+
+### Uploads (`/uploads`)
+
+- `POST /cloudinary/signature` - Generate signed Cloudinary upload params (authenticated)
 
 ### Clients (`/clients`)
 
@@ -83,13 +99,15 @@ See `.env.example` for required variables:
 - `PATCH /:clientId` - Update client (`masterAdmin` any, `Admin` own only)
 - `DELETE /:clientId` - Delete client (`masterAdmin` only)
 
-### Obras/Projects (`/obras`)
+### Obras (Projects) (`/obras`)
 
-- `POST /createObra` - Create project (`masterAdmin` any client, others own client only)
-- `GET /` - List projects (`masterAdmin` all, others own client only)
-- `GET /:obraId` - Get project details (client-scoped unless `masterAdmin`)
-- `PATCH /:obraId` - Update project (client-scoped unless `masterAdmin`)
-- `DELETE /:obraId` - Delete project (client-scoped unless `masterAdmin`)
+- `POST /createObra` - Create obra (`masterAdmin` any client, others own client only)
+- `GET /` - List obras (`masterAdmin` all, others own client only)
+- `GET /:obraId` - Get obra details (client-scoped unless `masterAdmin`)
+- `PATCH /:obraId` - Update obra (client-scoped unless `masterAdmin`)
+- `DELETE /:obraId` - Delete obra (client-scoped unless `masterAdmin`)
+- `POST /:obraId/faturas` - Add invoice to obra
+- `DELETE /:obraId/faturas/:faturaId` - Delete invoice from obra
 
 ## Security & Validation
 
@@ -98,6 +116,8 @@ See `.env.example` for required variables:
 - Stricter auth rate limiting on `/users/login`, `/users/signup`, and `/users/resetpassword/:userId`
 - Joi body validation on auth, client, and obra create/update routes
 - Environment validation at startup for required secrets and rate-limit numeric values
+- `User.password` is excluded by default (`select: false`) and only explicitly selected in login flow
+- CORS allowlist enforced via `ALLOWED_ORIGINS` with `credentials: true`
 
 ## Architecture
 
@@ -108,17 +128,19 @@ See `.env.example` for required variables:
 3. Global rate limiting is applied per top-level API area (`/api`, `/users`, `/clients`, `/obras`), with stricter auth limits for login/signup/reset-password routes.
 4. Route modules apply authentication (`authMiddleware`), role authorization (`roleMiddleware`), and Joi payload validation (`validationMiddleware`) before controller logic.
 5. Request handlers access MongoDB through Mongoose models (`User`, `Client`, `Obra`) with tenant-aware access checks based on JWT payload (`role`, `clientId`).
-6. `error-handling/index.ts` provides fallback 404 and centralized 500 error responses with structured logging.
+6. `index.routes.ts` exposes both base health and DB-aware health checks.
+7. `server.ts` handles graceful shutdown (`SIGINT`/`SIGTERM`) by closing HTTP server and MongoDB connection before process exit.
+8. `error-handling/index.ts` provides fallback 404 and centralized 500 error responses with structured logging.
 
 ```text
 Server/
 ├── app.ts                     # Express composition: middleware, rate limits, route mounting
-├── server.ts                  # Process bootstrap, env validation, HTTP listener
+├── server.ts                  # Process bootstrap, env validation, HTTP listener, graceful shutdown
 ├── config/
 │   ├── index.ts               # Core middleware (CORS, morgan->winston, parsers, sanitize)
 │   └── logger.ts              # Winston logger configuration
 ├── db/
-│   └── index.ts               # MongoDB connection bootstrap
+│   └── index.ts               # MongoDB connection bootstrap + readiness/close helpers
 ├── error-handling/
 │   └── index.ts               # 404 + centralized error middleware
 ├── middlewares/
@@ -133,10 +155,11 @@ Server/
 │   ├── Client.model.ts
 │   └── Obra.model.ts
 ├── routes/
-│   ├── index.routes.ts        # Health endpoint
+│   ├── index.routes.ts        # Base + DB-aware health endpoints
 │   ├── user.routes.ts         # Auth + user management
 │   ├── client.routes.ts       # Tenant/client + member management
-│   └── obras.routes.ts        # Project (obra) CRUD
+│   ├── obras.routes.ts        # Project (obra) CRUD + invoice operations
+│   └── upload.routes.ts       # Cloudinary signature endpoint
 ├── types/
 │   └── index.ts               # Shared TypeScript interfaces
 ├── scripts/
