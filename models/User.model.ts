@@ -1,6 +1,5 @@
 import { Schema, model } from "mongoose";
 
-
 const userSchema = new Schema(
   {
     username: {
@@ -26,24 +25,24 @@ const userSchema = new Schema(
     // },
     role: {
       type: String,
-      enum:['masterAdmin','Admin','user','guest'],
+      enum: ["masterAdmin", "Admin", "user", "guest"],
       required: true,
-      default: "guest"
+      default: "guest",
     },
     resetPassword: {
       type: Boolean,
-      default: true,      
+      default: true,
     },
     clientId: {
       type: Schema.Types.ObjectId,
-      ref: 'Client',
-      required: false
-    }
+      ref: "Client",
+      required: false,
+    },
   },
   {
     // this second object adds extra properties: `createdAt` and `updatedAt`
     timestamps: true,
-  }
+  },
 );
 
 const User = model("User", userSchema);

@@ -13,7 +13,8 @@ mongoose
     logger.error("MongoDB connection error", { error: err });
   });
 
-export const isDbConnected = (): boolean => mongoose.connection.readyState === 1;
+export const isDbConnected = (): boolean =>
+  mongoose.connection.readyState === 1;
 
 export const getDbReadyState = (): number => mongoose.connection.readyState;
 
