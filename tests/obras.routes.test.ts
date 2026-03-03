@@ -42,7 +42,9 @@ describe("Obra routes", () => {
       });
 
     expect(response.status).toBe(403);
-    expect(response.body.message).toContain("Cannot create obra for another client");
+    expect(response.body.message).toContain(
+      "Cannot create obra for another client",
+    );
   });
 
   it("GET /obras returns obra list for authenticated user", async () => {
@@ -61,7 +63,9 @@ describe("Obra routes", () => {
         obraName: "Obra A",
       },
     ]);
-    const firstPopulate = jest.fn().mockReturnValue({ populate: secondPopulate });
+    const firstPopulate = jest
+      .fn()
+      .mockReturnValue({ populate: secondPopulate });
 
     jest.spyOn(Obra, "find").mockReturnValue({
       populate: firstPopulate,
