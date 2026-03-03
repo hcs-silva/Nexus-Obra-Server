@@ -1,0 +1,54 @@
+services:
+  mongo:
+    image: mongo:7
+    container_name: nexus-obra-mongo
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo-data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: nexus-obra-server
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 5005
+      MONGODB_URI: mongodb://mongo:27017/gestao-obra-server
+      TOKEN_SECRET: ${TOKEN_SECRET:-change-me-in-production}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost:5173,http://localhost:8080}
+      RATE_LIMIT_WINDOW_MS: ${RATE_LIMIT_WINDOW_MS:-900000}
+      RATE_LIMIT_MAX: ${RATE_LIMIT_MAX:-100}
+      AUTH_RATE_LIMIT_WINDOW_MS: ${AUTH_RATE_LIMIT_WINDOW_MS:-900000}
+      AUTH_RATE_LIMIT_MAX: ${AUTH_RATE_LIMIT_MAX:-5}
+      CLOUDINARY_CLOUD_NAME: ${CLOUDINARY_CLOUD_NAME:-dev-cloud-name}
+      CLOUDINARY_API_KEY: ${CLOUDINARY_API_KEY:-dev-api-key}
+      CLOUDINARY_API_SECRET: ${CLOUDINARY_API_SECRET:-dev-api-secret}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    ports:
+      - "5005:5005"
+    depends_on:
+      mongo:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:5005/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  mongo-data:
