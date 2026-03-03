@@ -3,7 +3,7 @@ name: Server CI
 on:
   push:
     branches: ["main", "master"]
-    tags: ["v*"]
+    tags: ["server-v*"]
   pull_request:
     branches: ["main", "master"]
 
