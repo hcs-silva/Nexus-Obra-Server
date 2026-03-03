@@ -1,4 +1,27 @@
 import { Schema, model } from "mongoose";
+import faturaSchema from "./Fatura.model";
+
+const cadernoEncargosSchema = new Schema(
+  {
+    fileName: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    fileUrl: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    uploadDate: {
+      type: Date,
+      required: true,
+    },
+  },
+  {
+    _id: false,
+  },
+);
 
 const obraSchema = new Schema(
   {
@@ -29,10 +52,23 @@ const obraSchema = new Schema(
     budget: {
       type: Number,
     },
+    cadernoEncargos: {
+      type: cadernoEncargosSchema,
+      required: false,
+    },
     clientId: {
       type: Schema.Types.ObjectId,
       ref: "Client",
       required: true,
+    },
+    faturas: {
+      type: [faturaSchema],
+      default: [],
+    },
+    totalExpenses: {
+      type: Number,
+      default: 0,
+      min: 0,
     },
     responsibleUsers: [
       {
@@ -43,7 +79,7 @@ const obraSchema = new Schema(
   },
   {
     timestamps: true,
-  }
+  },
 );
 
 const Obra = model("Obra", obraSchema);

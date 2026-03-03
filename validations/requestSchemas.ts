@@ -70,3 +70,19 @@ export const updateObraSchema = Joi.object({
     .items(Joi.string().pattern(objectIdPattern))
     .optional(),
 }).min(1);
+
+export const addFaturaSchema = Joi.object({
+  obraId: Joi.string().pattern(objectIdPattern).optional(),
+  description: Joi.string().trim().min(1).required(),
+  amount: Joi.number().positive().required(),
+  date: Joi.date().iso().required(),
+  category: Joi.string().trim().allow("").optional(),
+});
+
+export const updateFaturaSchema = Joi.object({
+  obraId: Joi.string().pattern(objectIdPattern).optional(),
+  description: Joi.string().trim().min(1).optional(),
+  amount: Joi.number().positive().optional(),
+  date: Joi.date().iso().optional(),
+  category: Joi.string().trim().allow("").optional(),
+}).min(1);

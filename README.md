@@ -208,13 +208,13 @@ From `Server/`:
 ```bash
 docker build -t nexus-obra-server .
 docker run --rm -p 5005:5005 \
-	-e PORT=5005 \
-	-e MONGODB_URI=mongodb://host.docker.internal:27017/gestao-obra-server \
-	-e TOKEN_SECRET=change-me \
-	-e CLOUDINARY_CLOUD_NAME=your-cloud \
-	-e CLOUDINARY_API_KEY=your-key \
-	-e CLOUDINARY_API_SECRET=your-secret \
-	nexus-obra-server
+ -e PORT=5005 \
+ -e MONGODB_URI=mongodb://host.docker.internal:27017/gestao-obra-server \
+ -e TOKEN_SECRET=change-me \
+ -e CLOUDINARY_CLOUD_NAME=your-cloud \
+ -e CLOUDINARY_API_KEY=your-key \
+ -e CLOUDINARY_API_SECRET=your-secret \
+ nexus-obra-server
 ```
 
 For version tagging and rollback flow, see [RELEASE_CHECKLIST.md](./RELEASE_CHECKLIST.md).

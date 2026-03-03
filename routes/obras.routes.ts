@@ -4,7 +4,9 @@ import User from "../models/User.model";
 import isAuthenticated from "../middlewares/authMiddleware";
 import { validateBody } from "../middlewares/validationMiddleware";
 import {
+  addFaturaSchema,
   createObraSchema,
+  updateFaturaSchema,
   updateObraSchema,
 } from "../validations/requestSchemas";
 
@@ -285,5 +287,233 @@ router.delete("/:obraId", isAuthenticated, async (req: any, res: Response) => {
     return res.status(500).json({ message: "Internal server error" });
   }
 });
+
+router.post(
+  "/:obraId/faturas",
+  isAuthenticated,
+  validateBody(addFaturaSchema),
+  async (req: any, res: Response) => {
+    try {
+      const { obraId } = req.params;
+      const {
+        obraId: selectedObraId,
+        description,
+        amount,
+        date,
+        category,
+      } = req.body;
+
+      if (selectedObraId && String(selectedObraId) !== String(obraId)) {
+        return res.status(400).json({
+          message: "Selected obra does not match route obra.",
+        });
+      }
+
+      const obra = await Obra.findById(obraId);
+      if (!obra) {
+        return res.status(404).json({ message: "Obra not found." });
+      }
+
+      if (req.payload?.role !== "masterAdmin") {
+        const tokenClientId = String(req.payload?.clientId || "");
+        const obraClientId = String(obra.clientId);
+        if (!tokenClientId || tokenClientId !== obraClientId) {
+          return res.status(403).json({
+            message: "Access denied. Insufficient permissions for this obra.",
+          });
+        }
+      }
+
+      obra.faturas.push({
+        obraId,
+        description,
+        amount,
+        date,
+        category: category || undefined,
+      });
+
+      obra.totalExpenses = obra.faturas.reduce(
+        (total: number, fatura: any) => total + (Number(fatura.amount) || 0),
+        0,
+      );
+
+      await obra.save();
+
+      return res.status(201).json({
+        message: "Fatura adicionada com sucesso",
+        obra,
+      });
+    } catch (error: any) {
+      return res.status(500).json({ message: "Internal server error" });
+    }
+  },
+);
+
+router.patch(
+  "/:obraId/faturas/:faturaId",
+  isAuthenticated,
+  validateBody(updateFaturaSchema),
+  async (req: any, res: Response) => {
+    try {
+      const { obraId, faturaId } = req.params;
+      const {
+        obraId: targetObraIdFromBody,
+        description,
+        amount,
+        date,
+        category,
+      } = req.body;
+
+      const sourceObra = await Obra.findById(obraId);
+      if (!sourceObra) {
+        return res.status(404).json({ message: "Obra not found." });
+      }
+
+      const tokenClientId = String(req.payload?.clientId || "");
+      const sourceClientId = String(sourceObra.clientId);
+
+      if (req.payload?.role !== "masterAdmin") {
+        if (!tokenClientId || tokenClientId !== sourceClientId) {
+          return res.status(403).json({
+            message: "Access denied. Insufficient permissions for this obra.",
+          });
+        }
+      }
+
+      const faturaToUpdate = sourceObra.faturas.id(faturaId);
+      if (!faturaToUpdate) {
+        return res.status(404).json({ message: "Fatura not found." });
+      }
+
+      const targetObraId = targetObraIdFromBody
+        ? String(targetObraIdFromBody)
+        : String(obraId);
+      const isMovingToAnotherObra = targetObraId !== String(obraId);
+
+      if (isMovingToAnotherObra) {
+        const targetObra = await Obra.findById(targetObraId);
+        if (!targetObra) {
+          return res.status(404).json({ message: "Target obra not found." });
+        }
+
+        if (req.payload?.role !== "masterAdmin") {
+          const targetClientId = String(targetObra.clientId);
+          if (!tokenClientId || tokenClientId !== targetClientId) {
+            return res.status(403).json({
+              message:
+                "Access denied. Cannot move fatura to an obra of another client.",
+            });
+          }
+        }
+
+        const movedFatura = {
+          obraId: targetObra._id,
+          description: description ?? faturaToUpdate.description,
+          amount: amount ?? faturaToUpdate.amount,
+          date: date ?? faturaToUpdate.date,
+          category:
+            category !== undefined
+              ? category || undefined
+              : faturaToUpdate.category,
+        };
+
+        faturaToUpdate.deleteOne();
+
+        sourceObra.totalExpenses = sourceObra.faturas.reduce(
+          (total: number, fatura: any) => total + (Number(fatura.amount) || 0),
+          0,
+        );
+
+        targetObra.faturas.push(movedFatura);
+        targetObra.totalExpenses = targetObra.faturas.reduce(
+          (total: number, fatura: any) => total + (Number(fatura.amount) || 0),
+          0,
+        );
+
+        await sourceObra.save();
+        await targetObra.save();
+
+        return res.status(200).json({
+          message: "Fatura atualizada com sucesso",
+          obra: targetObra,
+        });
+      }
+
+      if (description !== undefined) {
+        faturaToUpdate.description = description;
+      }
+      if (amount !== undefined) {
+        faturaToUpdate.amount = amount;
+      }
+      if (date !== undefined) {
+        faturaToUpdate.date = date;
+      }
+      if (category !== undefined) {
+        faturaToUpdate.category = category || undefined;
+      }
+      faturaToUpdate.obraId = sourceObra._id;
+
+      sourceObra.totalExpenses = sourceObra.faturas.reduce(
+        (total: number, fatura: any) => total + (Number(fatura.amount) || 0),
+        0,
+      );
+
+      await sourceObra.save();
+
+      return res.status(200).json({
+        message: "Fatura atualizada com sucesso",
+        obra: sourceObra,
+      });
+    } catch (error: any) {
+      return res.status(500).json({ message: "Internal server error" });
+    }
+  },
+);
+
+router.delete(
+  "/:obraId/faturas/:faturaId",
+  isAuthenticated,
+  async (req: any, res: Response) => {
+    try {
+      const { obraId, faturaId } = req.params;
+
+      const obra = await Obra.findById(obraId);
+      if (!obra) {
+        return res.status(404).json({ message: "Obra not found." });
+      }
+
+      if (req.payload?.role !== "masterAdmin") {
+        const tokenClientId = String(req.payload?.clientId || "");
+        const obraClientId = String(obra.clientId);
+        if (!tokenClientId || tokenClientId !== obraClientId) {
+          return res.status(403).json({
+            message: "Access denied. Insufficient permissions for this obra.",
+          });
+        }
+      }
+
+      const faturaToDelete = obra.faturas.id(faturaId);
+      if (!faturaToDelete) {
+        return res.status(404).json({ message: "Fatura not found." });
+      }
+
+      faturaToDelete.deleteOne();
+
+      obra.totalExpenses = obra.faturas.reduce(
+        (total: number, fatura: any) => total + (Number(fatura.amount) || 0),
+        0,
+      );
+
+      await obra.save();
+
+      return res.status(200).json({
+        message: "Fatura apagada com sucesso",
+        obra,
+      });
+    } catch (error: any) {
+      return res.status(500).json({ message: "Internal server error" });
+    }
+  },
+);
 
 export default router;
