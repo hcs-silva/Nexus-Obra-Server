@@ -26,11 +26,13 @@ router.get("/", isAuthenticated, async (req: any, res) => {
   try {
     // If requester is masterAdmin return all users
     if (req.payload?.role === "masterAdmin") {
-      const foundUsers = await User.find();
+      const foundUsers = await User.find().select(
+        "_id username role resetPassword clientId",
+      );
       if (foundUsers.length === 0) {
         return res.status(404).json({ message: `No users found!` });
       }
-      return res.status(200).json(foundUsers);
+      return res.status(200).json(foundUsers.map(toSafeUser));
     }
 
     // Otherwise only return users belonging to the same clientId
@@ -41,15 +43,17 @@ router.get("/", isAuthenticated, async (req: any, res) => {
         .json({ message: "Access denied. No client association." });
     }
 
-    const foundUsers = await User.find({ clientId: clientId });
+    const foundUsers = await User.find({ clientId: clientId }).select(
+      "_id username role resetPassword clientId",
+    );
     if (foundUsers.length === 0) {
       return res
         .status(404)
         .json({ message: `No users found for this client!` });
     }
-    return res.status(200).json(foundUsers);
+    return res.status(200).json(foundUsers.map(toSafeUser));
   } catch (error: any) {
-    res.status(500).json({ message: `${error}` });
+    res.status(500).json({ message: "Failed to fetch users" });
   }
 });
 
@@ -104,7 +108,7 @@ router.post(
       if (error?.code === 11000) {
         return res.status(409).json({ message: "Username already exists" });
       }
-      res.status(500).json({ message: `${error}` });
+      res.status(500).json({ message: "Failed to create user" });
     }
   },
 );
@@ -165,9 +169,7 @@ router.post(
       }
     } catch (error: any) {
       logger.error("Login error", { error, username });
-      res
-        .status(500)
-        .json({ message: `Invalid Credentials`, error: `${error}` });
+      res.status(500).json({ message: "Invalid Credentials" });
     }
   },
 );
@@ -205,14 +207,11 @@ router.patch(
         resetPassword: false,
       };
 
-      const updatedUserPassword = await User.findByIdAndUpdate(
-        userId,
-        updatedUser,
-      );
+      await User.findByIdAndUpdate(userId, updatedUser);
 
       res.status(200).json({ message: "Password Upated Sucessfuly!" });
     } catch (error: any) {
-      res.status(500).json({ message: "No user found" });
+      res.status(500).json({ message: "Failed to update password" });
     }
   },
 );
